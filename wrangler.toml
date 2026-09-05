@@ -5,8 +5,9 @@ compatibility_flags = ["nodejs_compat"]
 
 # Vars set via dashboard or `wrangler secret put` / `wrangler vars`.
 [vars]
-PROVIDER = "google"
-MODEL = "gemini-3.6-flash"
+PROVIDER = "openai"
+MODEL = ""
+# UPSTREAM_URL = ""
 # Use PROVIDER = "openai" for any OpenAI-compatible API, including Perplexity.
 # Use PROVIDER = "anthropic" for Claude, or PROVIDER = "google" for Gemini.
 # FALLBACK_MODELS = "model-a,model-b" # optional ordered retry models

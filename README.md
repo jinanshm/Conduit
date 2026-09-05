@@ -8,14 +8,20 @@
 
 Conduit is a Cloudflare Worker that sits between your Android app and whichever AI provider you choose. Your app always sends the same standard request. The Worker translates it, forwards it to the configured provider, and streams the response back — all without your app knowing or caring which model or service is behind it.
 
-```
-Android App                Conduit (Cloudflare Worker)          AI Provider
-────────────────           ───────────────────────────          ─────────────
-POST /v1/chat/completions  ──►  translate request          ──►  Claude
-  { messages: [...] }           swap in provider key            Gemini
-  Authorization: Bearer         try fallback on 429             OpenRouter
-    <proxy key>            ◄──  normalize response         ◄──  Perplexity
-                                                                 Groq / …
+```mermaid
+sequenceDiagram
+    participant App as Android App
+    participant Conduit as Conduit Worker
+    participant Provider as AI Provider
+
+    App->>Conduit: POST /v1/chat/completions
+    Note over Conduit: Translate request format
+    Note over Conduit: Inject provider key
+    Conduit->>Provider: Native provider request
+    Provider-->>Conduit: Response or error
+    Note over Conduit: Retry next fallback on 429/5xx
+    Note over Conduit: Normalize to OpenAI format
+    Conduit-->>App: JSON response or SSE stream
 ```
 
 Provider credentials live exclusively in Cloudflare Worker secrets. The app only knows the Worker URL and an optional lightweight proxy key.
@@ -53,12 +59,13 @@ These APIs speak the OpenAI format natively. Set `PROVIDER=openai` and point `UP
 
 | Provider | `UPSTREAM_URL` | Notes |
 |---|---|---|
-| **OpenRouter** | `https://openrouter.ai/api/v1` | 100+ models from one API key |
-| **Perplexity** | `https://api.perplexity.ai` | Web-grounded and chat models |
-| **Groq** | `https://api.groq.com/openai/v1` | Ultra-fast inference |
+| **OpenAI** | `https://api.openai.com/v1` | `gpt-6-astra`, `gpt-5.6-terra`, `gpt-5`, and more |
+| **OpenRouter** | `https://openrouter.ai/api/v1` | 100+ models from one API key; use `moonshotai/kimi-k3` here too |
+| **Perplexity** | `https://api.perplexity.ai` | Web-grounded models: `sonar-pro`, `sonar-reasoning-pro`, `sonar` |
+| **Groq** | `https://api.groq.com/openai/v1` | Ultra-fast inference; hosts `moonshotai/kimi-k2-instruct-0905` |
+| **Kimi (Moonshot AI)** | `https://api.moonshot.ai/v1` | `kimi-k3`, `kimi-k2.6`, `kimi-k2.7-code` |
 | **Together AI** | `https://api.together.xyz/v1` | Open-source model hosting |
 | **Nvidia NIM** | `https://integrate.api.nvidia.com/v1` | Llama, Mistral, and more |
-| **Anyscale** | `https://api.endpoints.anyscale.com/v1` | Scalable open-source models |
 | **Any `/v1` API** | your endpoint | Conduit forwards requests as-is |
 
 > You can mix strategies for resilience: set `PROVIDER=openai` with OpenRouter as the primary, then add Groq or Perplexity models as fallbacks — all through a single API key if you use OpenRouter.
@@ -71,27 +78,22 @@ Fallbacks are the main resilience tool. When a provider returns a retryable erro
 
 ### How the chain works
 
-```
-Request arrives
-    │
-    ▼
-Try MODEL (primary)
-    │  429 / 500 / 502 / …
-    ▼
-Try FALLBACK_MODELS[0]
-    │  still failing
-    ▼
-Try FALLBACK_MODELS[1]
-    │  still failing
-    ▼
-Return error to app   (only if all models exhausted)
+```mermaid
+flowchart TD
+    A([Request arrives]) --> B[Try MODEL primary]
+    B -->|success| R([Return response to app])
+    B -->|429 / 500 / 502 / ...| C[Try FALLBACK_MODELS 0]
+    C -->|success| R
+    C -->|still failing| D[Try FALLBACK_MODELS 1]
+    D -->|success| R
+    D -->|still failing| E([Return error to app])
 ```
 
 ### Configuration
 
 ```ini
-MODEL=claude-3-5-sonnet-20241022          # primary
-FALLBACK_MODELS=claude-3-5-haiku-latest,claude-3-haiku-20240307
+MODEL=claude-fable-5              # primary — most capable
+FALLBACK_MODELS=claude-opus-5,claude-sonnet-5
 ```
 
 **Rules to keep in mind:**
@@ -130,25 +132,43 @@ Edit `.dev.vars` for your provider. Pick one block:
 ```ini
 PROVIDER=anthropic
 ANTHROPIC_API_KEY=sk-ant-...
-MODEL=claude-3-5-sonnet-20241022
-FALLBACK_MODELS=claude-3-5-haiku-latest,claude-3-haiku-20240307
+MODEL=claude-fable-5
+FALLBACK_MODELS=claude-opus-5,claude-sonnet-5
 ```
 
 **Google AI Studio (Gemini):**
 ```ini
 PROVIDER=google
 GOOGLE_API_KEY=AIzaSy...
-MODEL=gemini-2.5-pro
-FALLBACK_MODELS=gemini-2.5-flash,gemini-2.0-flash
+MODEL=gemini-3.6-flash
+FALLBACK_MODELS=gemini-3.5-flash,gemini-2.5-flash
 ```
 
-**OpenAI-compatible (Perplexity, OpenRouter, Groq, …):**
+**OpenAI:**
+```ini
+PROVIDER=openai
+UPSTREAM_URL=https://api.openai.com/v1
+UPSTREAM_API_KEY=sk-...
+MODEL=gpt-6-astra
+FALLBACK_MODELS=gpt-5.6-terra,gpt-5
+```
+
+**Perplexity (web-grounded):**
 ```ini
 PROVIDER=openai
 UPSTREAM_URL=https://api.perplexity.ai
 UPSTREAM_API_KEY=pplx-...
 MODEL=sonar-pro
-FALLBACK_MODELS=sonar,sonar-reasoning
+FALLBACK_MODELS=sonar-reasoning-pro,sonar
+```
+
+**Kimi K3 (Moonshot AI):**
+```ini
+PROVIDER=openai
+UPSTREAM_URL=https://api.moonshot.ai/v1
+UPSTREAM_API_KEY=sk-...
+MODEL=kimi-k3
+FALLBACK_MODELS=kimi-k2.6
 ```
 
 **Optional (any provider):**
@@ -260,21 +280,39 @@ The client uses the same request format regardless of which provider is configur
 Because everything is configured server-side, switching providers requires no app update:
 
 ```bash
-# Move from Groq to Perplexity
+# Move to Claude Fable 5
+# 1. Update wrangler.toml [vars]:
+#    PROVIDER = "anthropic"
+#    MODEL = "claude-fable-5"
+#    FALLBACK_MODELS = "claude-opus-5,claude-sonnet-5"
+npx wrangler secret put ANTHROPIC_API_KEY
+npm run deploy
+
+# Move to GPT-6 Astra
+# 1. Update wrangler.toml [vars]:
+#    PROVIDER = "openai"
+#    UPSTREAM_URL = "https://api.openai.com/v1"
+#    MODEL = "gpt-6-astra"
+#    FALLBACK_MODELS = "gpt-5.6-terra,gpt-5"
+npx wrangler secret put UPSTREAM_API_KEY   # your OpenAI key
+npm run deploy
+
+# Move to Kimi K3
+# 1. Update wrangler.toml [vars]:
+#    PROVIDER = "openai"
+#    UPSTREAM_URL = "https://api.moonshot.ai/v1"
+#    MODEL = "kimi-k3"
+#    FALLBACK_MODELS = "kimi-k2.6"
+npx wrangler secret put UPSTREAM_API_KEY   # your Moonshot key
+npm run deploy
+
+# Move to Perplexity Sonar
 # 1. Update wrangler.toml [vars]:
 #    PROVIDER = "openai"
 #    UPSTREAM_URL = "https://api.perplexity.ai"
 #    MODEL = "sonar-pro"
-#    FALLBACK_MODELS = "sonar"
+#    FALLBACK_MODELS = "sonar-reasoning-pro,sonar"
 npx wrangler secret put UPSTREAM_API_KEY   # your Perplexity key
-npm run deploy
-
-# Move to Claude
-# 1. Update wrangler.toml [vars]:
-#    PROVIDER = "anthropic"
-#    MODEL = "claude-3-5-sonnet-20241022"
-#    FALLBACK_MODELS = "claude-3-5-haiku-latest"
-npx wrangler secret put ANTHROPIC_API_KEY
 npm run deploy
 ```
 
@@ -325,4 +363,4 @@ npm run deploy
 
 ## License
 
-MIT
+[MIT](LICENSE)
