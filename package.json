@@ -1,0 +1,19 @@
+{
+  "name": "conduit",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker AI gateway — keep provider keys off your Android app",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "cf-typegen": "wrangler types"
+  },
+  "dependencies": {
+    "@google/genai": "^1.52.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240725.0",
+    "typescript": "^5.5.0",
+    "wrangler": "^3.80.0"
+  }
+}

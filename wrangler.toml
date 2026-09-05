@@ -1,0 +1,21 @@
+name = "conduit"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Vars set via dashboard or `wrangler secret put` / `wrangler vars`.
+[vars]
+PROVIDER = "google"
+MODEL = "gemini-3.6-flash"
+# Use PROVIDER = "openai" for any OpenAI-compatible API, including Perplexity.
+# Use PROVIDER = "anthropic" for Claude, or PROVIDER = "google" for Gemini.
+# FALLBACK_MODELS = "model-a,model-b" # optional ordered retry models
+# UPSTREAM_API_KEY = "" # secret for PROVIDER=openai
+# ANTHROPIC_API_KEY = "" # secret for PROVIDER=anthropic
+# GOOGLE_API_KEY = "" # secret for PROVIDER=google
+# PROXY_API_KEY = "" # optional client authentication secret
+# ALLOWED_ORIGINS = "*"
+# ALLOWED_MODELS = ""
+
+[observability]
+enabled = true

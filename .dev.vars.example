@@ -1,0 +1,40 @@
+# Copy to .dev.vars for local dev (wrangler dev reads this automatically).
+# DO NOT commit .dev.vars.
+
+# Provider adapter: openai (default), anthropic, or google.
+# openai means any OpenAI-compatible API, including Perplexity, OpenRouter,
+# Groq, Together, and many self-hosted gateways.
+PROVIDER="openai"
+
+# Primary model used when Android omits model.
+MODEL="meta/llama-3.1-70b-instruct"
+
+# Optional ordered fallbacks. The next model is tried on 408, 409, 425, 429,
+# 500, 502, 503, or 504 responses. Use model IDs valid for the same provider.
+# FALLBACK_MODELS="meta/llama-3.1-8b-instruct,mistralai/mistral-7b-instruct"
+
+# Required for PROVIDER=openai. Examples:
+# Perplexity: https://api.perplexity.ai
+# OpenRouter: https://openrouter.ai/api/v1
+# Nvidia NIM: https://integrate.api.nvidia.com/v1
+UPSTREAM_URL="https://integrate.api.nvidia.com/v1"
+UPSTREAM_API_KEY="nvapi-xxxxxxxxxxxxxxxx"
+
+# Required for PROVIDER=anthropic (Claude). UPSTREAM_URL is optional and
+# defaults to https://api.anthropic.com.
+# ANTHROPIC_API_KEY="sk-ant-..."
+# MODEL="claude-3-5-haiku-latest"
+
+# Required for PROVIDER=google. Create this in Google AI Studio and store it
+# as a Worker secret in production. Do not use this in the Android app.
+# GOOGLE_API_KEY="AIza..."
+# For Google mode, set MODEL to a Gemini model such as gemini-2.5-flash.
+
+# Optional: require Android to send Authorization: Bearer <PROXY_API_KEY>.
+PROXY_API_KEY=""
+
+# Optional: CORS origins - "*" or comma-separated.
+ALLOWED_ORIGINS="*"
+
+# Optional: comma-separated model allowlist. Include primary and fallback IDs.
+# ALLOWED_MODELS="meta/llama-3.1-70b-instruct,meta/llama-3.1-8b-instruct"
