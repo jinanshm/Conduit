@@ -115,7 +115,7 @@ FALLBACK_MODELS=claude-opus-5,claude-sonnet-5
 ### 1. Clone & install
 
 ```bash
-git clone https://github.com/your-username/conduit.git
+git clone https://github.com/Jinansh230705/conduit.git
 cd conduit
 npm install
 ```
